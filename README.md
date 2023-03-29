@@ -6,3 +6,5 @@
 #### 软件架构
 软件架构说明
 
+#### 编译命令
+1. queue:  gcc -o queue ./src/queue.c -I ./include/
