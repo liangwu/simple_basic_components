@@ -53,7 +53,7 @@ void btree_split_child(struct btree *T, struct btree_node *parent, int idx) {
 
 void btree_insert(struct btree *T, KEY_TYPE key) {
 	struct btree_node *root = T->root;
-	if (root->num == M-1) {
+	if (root->num == M-1) {		// 根节点满
 		struct btree_node *new_node = btree_create_node();
 		T->root = new_node;
 		new_node->children[0] = root;
