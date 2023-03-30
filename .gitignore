@@ -11,3 +11,4 @@
 # Compiled source
 *.exe
 *.o
+.vscode

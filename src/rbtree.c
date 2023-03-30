@@ -7,7 +7,7 @@
 typedef int KEY_TYPE;	// Key type
 
 typedef struct _rb_node{
-	__uint8_t color;
+	unsigned char color;
 	struct _rb_node *left;
 	struct _rb_node *right;
 	struct _rb_node *parent;	// 用于旋转操作
