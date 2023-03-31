@@ -5,7 +5,7 @@
 #define DEGREES		(M/2)
 
 typedef int KEY_TYPE;
-
+typedef unsigned char	u8int_t;
 struct btree_node
 {
 	KEY_TYPE *keys;		// 关键字数组
@@ -59,4 +59,12 @@ void btree_insert(struct btree *T, KEY_TYPE key) {
 		new_node->children[0] = root;
 		btree_split_child(T, new_node, 0);
 	}
+	struct btree_node *node = T->root;
+	while (!node->leaf) {		// 每次插入都发生在叶节点
+		u8int_t	u8i = 0;
+		// 找分支
+		while (u8i<node->num && key < node->keys[u8i]) u8i++;
+		node = node->children[u8i];		// 切换节点
+	}
+
 }

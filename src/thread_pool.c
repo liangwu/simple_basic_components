@@ -6,14 +6,23 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <queue.h>
 
 #define DEBUG
+
+#define PRINT(str)	\
+#if DEBUG			\
+	do{				\
+		PRINT("%s", str);	\
+	} while(0);		\
+#endif
 
 typedef struct task_entity{
 	struct task_entity *next;
 	struct task_entity *priv;
 	void (*handler)(void* arg);
-	void *userdata;			// 传出参数
+	void *arg;			// 传入参数
+	void *data;			// 传出参数
 }task_entity_t;
 
 typedef struct thread_entity{
@@ -25,8 +34,8 @@ typedef struct thread_entity{
 }thread_entity_t;
 
 typedef struct thread_pool{
-	struct task_entity *taskq;		// 任务队列
-	struct thread_entity *threadq;	// 工作队列
+	struct queue *taskq;  	// 任务队列
+	struct queue *threadq;	// 工作队列
 	pthread_cond_t cond;			// 关于任务量的条件变量
 	pthread_mutex_t mutex;			// 用于条件变量的互斥锁
 	__uint8_t shutdown;
@@ -36,16 +45,14 @@ static void* thread_task_cycyle(void *arg);
 
 
 static int is_empty_taskq(thread_pool_t *pool){
-	task_entity_t *taskq = pool->taskq;
-	if(taskq->next==NULL && taskq->priv==NULL) return true;
-	return false;
+	return queue_is_empty(pool->taskq);
 }
 
 /*
 pool:		线程池
 func:		任务函数
 */
-int add_task(thread_pool_t *pool, void (*func)(void *arg)){
+int add_task(thread_pool_t *pool, void (*func)(void *arg), void* arg) {
 	task_entity_t *pTask = (task_entity_t*)malloc(sizeof(task_entity_t));
 	if (pTask==NULL){
 		perror("malloc");
@@ -53,13 +60,13 @@ int add_task(thread_pool_t *pool, void (*func)(void *arg)){
 	}
 	memset(pTask, 0, sizeof(task_entity_t));
 	pTask->handler = func;
-	push_taskq(pool, pTask);		// 将任务压入线程池所管理的任务队列
-
+	pTask->arg = arg;
+	push_taskq(pool, pTask);			// 将任务压入线程池所管理的任务队列
 	// 发送关于任务加入的信号
 	pthread_mutex_lock(&pool->mutex);
 	pthread_cond_signal(&pool->cond);
 	pthread_mutex_unlock(&pool->mutex);
-	printf("task signal\n");
+	PRINT("task signal\n");
 	return 0;
 }
 
@@ -72,36 +79,21 @@ int del_task(task_entity_t **task){
 }
 
 static void push_taskq(thread_pool_t *pool, task_entity_t *entity){
-	task_entity_t *taskq = pool->taskq;
-	if(is_empty_taskq(pool)){
-		taskq->priv = entity;
-		taskq->next = entity;
-		entity->priv = taskq;
-		entity->next = taskq;
-		return;
-	}
-	entity->next = taskq;
-	entity->priv = taskq->priv;
-	taskq->priv = entity;
+	queue_push(pool->task, entity);
 }
 
 /*
 取出任务
 */
-static void* pop_taskq(thread_pool_t *pool){
-	// task_entity_t *pTaskq = pool->taskq;
+static task_entity_t* pop_taskq(thread_pool_t *pool){
 	if(is_empty_taskq(pool)){ return NULL; }
-	struct task_entity *task = pool->taskq->priv;
-	pool->taskq->priv = task->priv;
-
-	printf("pop task\n");
+	struct task_entity *task = queue_pop(pool->taskq);
+	PRINT("pop task\n");
 	return task;
 }
 
 static int is_empty_threadq(thread_pool_t *pool){
-	thread_entity_t *threadq = pool->threadq;
-	if(threadq->next== threadq && threadq->priv == threadq) return true;
-	return false;
+	return queue_is_empty(pool);
 }
 
 /*
@@ -117,7 +109,7 @@ int add_thread(thread_pool_t *pool){
 	pTread->pool = pool;
 	pthread_create(&pTread->thread_id, NULL,thread_task_cycyle, pTread);
 	push_threadq(pool, pTread);
-	printf("add thread\n");
+	PRINT("add thread\n");
 	return 0;
 }
 
@@ -127,25 +119,12 @@ int del_thread(thread_entity_t **pThread){
 }
 
 static void push_threadq(thread_pool_t *pool, thread_entity_t *entity){
-	printf("push_threadq\n");
-	if(is_empty_threadq(pool)){
-		pool->threadq->priv = entity;
-		pool->threadq->next = entity;
-		entity->priv = pool->threadq;
-		entity->next = NULL;
-		return;
-	}
-	entity->next = NULL;
-	entity->priv = pool->threadq->priv;
-	pool->threadq->priv = entity;
+	PRINT("push_threadq\n");
+	queue_push(pool->threadq, entity);
 }
 
-static void* pop_thread(thread_pool_t* pool){
-	thread_entity_t *threadq = pool->threadq;
-	if(is_empty_threadq(pool)) return NULL;
-	thread_entity_t *ret = threadq->priv;
-	threadq->priv = ret->priv;
-	return ret;
+static thread_pool_t* pop_thread(thread_pool_t* pool){
+	return (thread_pool_t*)queue_pop(pool->threadq);
 }
 
 // 线程任务循环
@@ -153,25 +132,27 @@ static void* thread_task_cycle(void *arg){
 	struct thread_entity *thread = (struct thread_entity*)arg;
 	struct task_entity *task = NULL;
 	while(!thread->shutdown){
+
 		pthread_mutex_lock(&thread->pool->mutex);
 		while(is_empty_taskq(thread->pool)){
 			pthread_cond_wait(&thread->pool->cond, &thread->pool->mutex);
 		}
 		// get a task from the taskq in the thread pool
-		task = (struct task_entity*)push_taskq(thread->pool);
+		task = pop_taskq(thread->pool);
 		pthread_mutex_unlock(&thread->pool->mutex);
-		if(task!=NULL) task->handler(task->userdata);	// 执行任务
+
+		if(task!=NULL) task->handler(task->arg);	// 执行任务
 		del_task(&task);	// 释放任务
-		printf("free task\n");
+		PRINT("free task\n");
 	}
 	return NULL;
 }
 
 
 /*
-func:	线程池初始化
-pool:	thread pool
-num:	number of threads
+*	@func:	线程池初始化
+*	@pool:	thread pool
+*	@num:	number of threads
 */
 int thread_pool_setup(thread_pool_t **pool, size_t num){
 	*pool  = (thread_pool_t *)malloc(sizeof(thread_pool_t));
@@ -180,10 +161,34 @@ int thread_pool_setup(thread_pool_t **pool, size_t num){
 		return -1;
 	}
 	memset(*pool, 0, sizeof(thread_pool_t));
+	queue_create(&pool->taskq);			// 初始化队列
+	queue_create(&pool->threadq);
+	pthread_create(pool->mutex);
+	pthread_cond_create(pool->cond);
 
+	if (num > 0) {		// 添加线程
+		int i;
+		for (i=0; i < num; i++) {
+			add_thread(pool);
+		}
+	} else {
+		add_thread(pool);
+	}
 
 	return 0;
 }
+
+/*
+*	@功能：销毁线程池
+*/
+void thread_pool_destroy(thread_pool_t *pool) {
+	queue_destroy(&pool->taskq);
+	queue_destroy(&pool->threadq);
+	pthread_mutex_destroy(&pool->mutex);
+	pthread_cond_destroy(&pool->cond);
+	free(*pool);
+}
+
 
 #ifdef DEBUG
 
@@ -191,7 +196,7 @@ void task_func1(void *arg){
 	int n=0;
 	while(n++<5){
 		sleep(1);
-		printf("I am task_func1\n");
+		PRINT("I am task_func1\n");
 	}
 }
 
@@ -199,26 +204,20 @@ void task_func2(void *arg){
 	int n=0;
 	while(n++<5){
 		sleep(1);
-		printf("I am task_func2\n");
+		PRINT("I am task_func2\n");
 	}
 }
 
 int main(int argc, char **argv){
 	int thread_size = 1;
-	printf("argc: %d\n", argc);
+	PRINT("argc: %d\n", argc);
 	if(argc==2){
 		thread_size = atoi(argv[1]);
 	}
-	task_entity_t task1, task2;
-	thread_pool_t pool;
-	memset(&pool, 0, sizeof(pool));
+	thread_pool_t *pool;
 	thread_pool_setup(&pool, thread_size);
-	memset(&task1, 0, sizeof(task1));
-	memset(&task2, 0, sizeof(task2));
-	task_init(&task1, task_func1);
-	task_init(&task2, task_func2);
-	push_taskq(&pool, &task1);
-	push_taskq(&pool, &task2);
+	add_task(pool, task_func1, NULL);
+	add_task(pool, task_func2, NULL);
 	// 线程同步
 	sleep(20);
 	return 0;
