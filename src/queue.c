@@ -10,9 +10,9 @@
 
 
 // 初始化循环双端链表
-int queue_create(struct Queue **queue){
+int queue_create(struct queue **queue){
 	struct Node *head = (struct Node*) malloc(sizeof(struct Node));
-	*queue = (struct Queue*) malloc(sizeof(struct Queue));
+	*queue = (struct queue*) malloc(sizeof(struct queue));
 	if(head==NULL){
 		perror("init_queue:");
 		return -1;
@@ -24,7 +24,7 @@ int queue_create(struct Queue **queue){
 	return 0;
 }
 
-static int queue_is_empty(struct Queue *queue){
+int queue_is_empty(struct queue *queue){
 	struct Node *head = queue->head;
 	if(head->prev == head->next && head->next == head){
 		return true;
@@ -33,7 +33,7 @@ static int queue_is_empty(struct Queue *queue){
 }
 
 // 入队操作
-int queue_push(struct Queue *queue, void *data){
+int queue_push(struct queue *queue, void *data){
 	struct Node *_node = (struct Node*)malloc(sizeof(struct Node));
 	if(_node == NULL){
 		perror("enqueue malloc failed");
@@ -56,7 +56,7 @@ int queue_push(struct Queue *queue, void *data){
 }
 
 // 出队操作
-void* queue_pop(struct Queue *queue){
+void* queue_pop(struct queue *queue){
 	if(queue_is_empty(queue)){
 		return NULL;
 	}
@@ -71,13 +71,13 @@ void* queue_pop(struct Queue *queue){
 }
 
 // 查询队列头部元素
-void* queue_first(struct Queue *queue){
+void* queue_first(struct queue *queue){
 	if(queue_is_empty(queue)){return NULL;}
 	return queue->head->prev->data;
 }
 
 
-void queue_destroy(struct Queue **queue) {
+void queue_destroy(struct queue **queue) {
 	while (!queue_is_empty(*queue)){
 		queue_pop(*queue);
 	}
@@ -90,7 +90,7 @@ void queue_destroy(struct Queue **queue) {
 #if DEBUG
 
 int main(int argc, char** argv){
-	struct Queue *queue;
+	struct queue *queue;
 	char str1[] = "hello world";
 	char str2[] = "Linux";
 	queue_create(&queue);
