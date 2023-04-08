@@ -223,22 +223,15 @@ static inline const int get_server_fd() {
 }
 
 
-int reactor_init() {
-	struct reactor *reactor = get_reactor_instance();
+static int reactor_init(struct reactor *reactor) {
+	if (reactor == NULL) return -1;
 
 	reactor->epfd = epoll_create(EPOLL_SIZE);
 	if (reactor->epfd < 0) {
         perror("epoll_create");
-        return -3;
-    }
-
-	reactor->head = (struct itemblock*)malloc(sizeof(struct itemblock));
-	if (reactor->head == NULL) {
-        perror("malloc");
-		ERROR = ERROR_MALLOC;
         return -1;
     }
-	memset(reactor->head, 0, sizeof(struct itemblock));
+
 	reactor->head = itemblock_create(NULL);
 	if (reactor->head == NULL) {
 		return -1;
@@ -314,6 +307,7 @@ void reactor_run() {
 
 			struct nitem* nitem = itemblock_find_nitem(reactor->head, clientfd);
 			if (clientfd == get_server_fd()) {			// new connection
+				printf("new connection\n");
 				nitem->accept_handle(clientfd, NULL);
 				continue;
 			}
@@ -338,7 +332,6 @@ int main(int arg, char** argv) {
 
 	printf("server started !!! \n");
 
-	reactor_init();
 	reactor_run();
 }
 
