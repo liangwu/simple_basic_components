@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
+#include <errno.h>
 
 
 #define EPOLL_SIZE		1024
@@ -14,19 +15,24 @@
 #define MAX_EPOLL_SIZE	1024
 #define BUFFER_SIZE		1024
 #define LISTEN_SIZE		1024
-#define PORT			8848
+#define PORT			8888
 
-#define ERROR_MALLOC	-2
+#define ERROR_MALLOC	-1
 
 #define READ_EVENT		0
 #define WRITE_EVENT     1
 #define ACCEPT_EVENT    2
 
+#define EPOLL_LT		0
+#define EPOLL_ET		1
+#define EPOLL_MODE		EPOLL_LT
 
 #define DEBUG			1		// 1：开启调试 | 0：关闭调试
 
+static int ERROR;
+static int server_fd;
 
-typedef void (*HANDLE)(int fd, int event, void *arg);
+typedef void (*HANDLE)(int fd, void *arg);
 
 /*
 * @brief 连接请求的信息、处理函数和缓冲区
@@ -46,6 +52,7 @@ struct nitem
 	char buf_write[BUFFER_SIZE];
 	char buf_read[BUFFER_SIZE];
 	size_t buf_w_len;
+	size_t buf_w_off;		// buffer offset
 	size_t buf_r_len;
 };
 
@@ -62,11 +69,21 @@ struct reactor {
 	//struct itemblock **tail;
 };
 
+
+
+struct reactor* get_reactor_instance();
+int reactor_set_event(int fd, HANDLE handle,int event, void* arg);
+void handle_read(int fd, void *arg);
+void handle_write(int fd, void *arg);
+
+
+
 struct itemblock* itemblock_create(struct itemblock *prev) {
 	struct itemblock *block = (struct itemblock*)malloc(sizeof(struct itemblock));
 	if (block == NULL) {
 		perror("malloc");
-		return ERROR_MALLOC;
+		ERROR = ERROR_MALLOC;
+		return NULL;
 	}
 
 	block->next = NULL;
@@ -74,7 +91,8 @@ struct itemblock* itemblock_create(struct itemblock *prev) {
 	block->item_array = (struct nitem*)malloc(MAX_ITEMS_SIZE*sizeof(struct nitem));
 	if (block->item_array == NULL) {
         perror("malloc");
-        return ERROR_MALLOC;
+		ERROR = ERROR_MALLOC;
+        return NULL;
     }
 	memset(block->item_array, 0, sizeof(struct nitem)*MAX_ITEMS_SIZE);
 
@@ -106,20 +124,64 @@ struct nitem* itemblock_find_nitem(struct itemblock* head, int fd) {
 }
 
 
-void handle_write(int fd, int event, void *arg) {
+void handle_write(int fd, void *arg) {
+	struct reactor *reactor = get_reactor_instance();
+	struct nitem *item = itemblock_find_nitem(reactor->head, fd);
+	char *buffer = item->buf_write;
+	size_t *len = &(item->buf_w_len);
+	size_t *offset = &(item->buf_w_off);
+
+again:
+	size_t nwrite = send(fd, buffer+*offset, *len, MSG_DONTWAIT);
+	if (nwrite < 0) {
+		if (errno == EINTR) goto again;
+	} else if (nwrite >= 0) {
+		*offset += nwrite;
+	}
+
+	if (*offset == *len) {
+		memset(buffer, 0, *len);
+		reactor_set_event(fd, handle_read, READ_EVENT, NULL);
+		*offset = 0;
+		*len = 0;
+	} else {
+		// 继续发送剩余数据
+		reactor_set_event(fd, handle_write, WRITE_EVENT, NULL);
+	}
 
 }
 
 
-void handle_read(int fd, int event, void *arg) {
+void handle_read(int fd, void *arg) {
+	struct reactor *reactor = get_reactor_instance();
+	struct nitem *item = itemblock_find_nitem(reactor->head, fd);
+	char *buffer = item->buf_read;
+	size_t *len = &(item->buf_r_len);
 
+again:
+#if (EPOLL_MODE==EPOLL_LT)
+
+	size_t nread = recv(fd, buffer+*len, sizeof(BUFFER_SIZE)-*len, MSG_DONTWAIT);
+
+	if (nread == 0) {
+		;
+	} else if (nread > 0) {
+		*len += nread;
+		printf("read %ld bytes\n", nread);
+	} else if (nread < 0) {
+		if (errno == EINTR) goto again;
+	}
+
+#elif (EPOLL_MODE == EPOLL_ET)
+
+#endif
 }
 
-void handle_accept(int fd, int event, void *arg) {
+void handle_accept(int fd, void *arg) {
 	int connfd;
 	struct sockaddr_in client_addr;
 	socklen_t len = sizeof(struct sockaddr_in);
-	connfd = accept(fd, (struct sockaddr *)&client_addr, len);
+	connfd = accept(fd, (struct sockaddr *)&client_addr, &len);
 	if (connfd < 0) {
         perror("accept");
         return;
@@ -128,8 +190,8 @@ void handle_accept(int fd, int event, void *arg) {
 	reactor_set_event(connfd, handle_read, READ_EVENT, NULL);
 }
 
-void server_init() {
-	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+static void server_init() {
+	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd < 0) {
         perror("socket");
         exit(1);
@@ -139,14 +201,14 @@ void server_init() {
 	bzero(&server_addr, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(PORT);
-	server_addr.sin_addr.s_addr = INADDR_ANY;
+	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	if (bind(server_fd, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in)) < 0) {
 		perror("bind");
         exit(1);
 	}
 
-	if (listen(server_fd, LISTEN_SIZE)) {
+	if (listen(server_fd, LISTEN_SIZE) == -1) {
 		perror("listen");
         exit(1);
 	}
@@ -156,11 +218,15 @@ void server_init() {
 
 }
 
+static inline const int get_server_fd() {
+	return server_fd;
+}
 
-static int reactor_init() {
+
+int reactor_init() {
 	struct reactor *reactor = get_reactor_instance();
 
-	reactor->epfd = epoll_create(0);
+	reactor->epfd = epoll_create(EPOLL_SIZE);
 	if (reactor->epfd < 0) {
         perror("epoll_create");
         return -3;
@@ -169,13 +235,16 @@ static int reactor_init() {
 	reactor->head = (struct itemblock*)malloc(sizeof(struct itemblock));
 	if (reactor->head == NULL) {
         perror("malloc");
-        return ERROR_MALLOC;
+		ERROR = ERROR_MALLOC;
+        return -1;
     }
 	memset(reactor->head, 0, sizeof(struct itemblock));
 	reactor->head = itemblock_create(NULL);
-	if (reactor->head == ERROR_MALLOC) {
+	if (reactor->head == NULL) {
 		return -1;
 	}
+
+	server_init();
 
 	return 0;
 }
@@ -187,7 +256,8 @@ struct reactor* get_reactor_instance() {	// singleton
 		instance = (struct reactor*)malloc(sizeof(struct reactor));
         if (instance == NULL) {
             perror("malloc");
-            return ERROR_MALLOC;
+			ERROR = ERROR_MALLOC;
+            return NULL;
         }
 		memset(instance, 0, sizeof(struct reactor));
         if (reactor_init(instance) < 0 ) {return NULL;}
@@ -203,7 +273,7 @@ int reactor_set_event(int fd, HANDLE handle,int event, void* arg) {
 	if (reactor == NULL) {return -1;}
 
 	struct epoll_event ep_event = {0};
-	ep_event.data.ptr = arg;
+	ep_event.data.fd = fd;
 	if (event == READ_EVENT) {
 		item->fd = fd;
 		item->read_hanle = handle;
@@ -228,6 +298,7 @@ int reactor_set_event(int fd, HANDLE handle,int event, void* arg) {
 }
 
 void reactor_run() {
+	uint32_t u32i;
 	struct reactor *reactor = get_reactor_instance();
 	if (reactor == NULL) {
 		printf("reactor_run failed\n");
@@ -237,7 +308,21 @@ void reactor_run() {
 	struct epoll_event event_array[MAX_EPOLL_SIZE] = {0};
 	while (1) {
 		int nready = epoll_wait(reactor->epfd, event_array, MAX_EPOLL_SIZE, -1);
-		while (nready-- > 0) {
+		for (u32i=0; u32i<nready; u32i++) {
+			int clientfd = event_array[u32i].data.fd;
+			int ep_event = event_array[u32i].events;
+
+			struct nitem* nitem = itemblock_find_nitem(reactor->head, clientfd);
+			if (clientfd == get_server_fd()) {			// new connection
+				nitem->accept_handle(clientfd, NULL);
+				continue;
+			}
+			if (ep_event & EPOLLIN) {			// read event
+				nitem->read_hanle(clientfd, NULL);
+			}
+			if (ep_event & EPOLLOUT) {			// write event
+				nitem->write_handle(clientfd, NULL);
+			}
 
 		}
 	}
@@ -251,6 +336,10 @@ void reactor_run() {
 
 int main(int arg, char** argv) {
 
+	printf("server started !!! \n");
+
+	reactor_init();
+	reactor_run();
 }
 
 
