@@ -44,7 +44,7 @@ struct nitem
 	void (*handle)(int fd, int event, void *arg);
 #else
 	HANDLE write_handle;
-	HANDLE read_hanle;
+	HANDLE read_handle;
 	HANDLE accept_handle;
 #endif
 	void *arg;
@@ -161,13 +161,15 @@ void handle_read(int fd, void *arg) {
 again:
 #if (EPOLL_MODE==EPOLL_LT)
 
-	size_t nread = recv(fd, buffer+*len, sizeof(BUFFER_SIZE)-*len, MSG_DONTWAIT);
+	size_t nread = recv(fd, buffer+*len, BUFFER_SIZE-*len, 0);
 
 	if (nread == 0) {
-		;
+		close(fd);
+		printf("close fd [%d]\n", fd);
 	} else if (nread > 0) {
 		*len += nread;
-		printf("read %ld bytes\n", nread);
+		reactor_set_event(fd, handle_write, WRITE_EVENT, NULL);
+		printf("read %ld bytes, msg: %s\n", nread, buffer);
 	} else if (nread < 0) {
 		if (errno == EINTR) goto again;
 	}
@@ -175,6 +177,7 @@ again:
 #elif (EPOLL_MODE == EPOLL_ET)
 
 #endif
+
 }
 
 void handle_accept(int fd, void *arg) {
@@ -253,7 +256,10 @@ struct reactor* get_reactor_instance() {	// singleton
             return NULL;
         }
 		memset(instance, 0, sizeof(struct reactor));
-        if (reactor_init(instance) < 0 ) {return NULL;}
+        if (reactor_init(instance) < 0 ) {
+			free(instance);
+			return NULL;
+		}
 	}
 	return instance;
 }
@@ -269,7 +275,7 @@ int reactor_set_event(int fd, HANDLE handle,int event, void* arg) {
 	ep_event.data.fd = fd;
 	if (event == READ_EVENT) {
 		item->fd = fd;
-		item->read_hanle = handle;
+		item->read_handle = handle;
 		item->arg = arg;
 		ep_event.events = EPOLLIN;
 	} else if (event == WRITE_EVENT) {
@@ -289,6 +295,12 @@ int reactor_set_event(int fd, HANDLE handle,int event, void* arg) {
 
     return 0;
 }
+
+
+int reactor_del_event(int fd) {
+	;
+}
+
 
 void reactor_run() {
 	uint32_t u32i;
@@ -312,7 +324,7 @@ void reactor_run() {
 				continue;
 			}
 			if (ep_event & EPOLLIN) {			// read event
-				nitem->read_hanle(clientfd, NULL);
+				nitem->read_handle(clientfd, NULL);
 			}
 			if (ep_event & EPOLLOUT) {			// write event
 				nitem->write_handle(clientfd, NULL);
@@ -320,6 +332,11 @@ void reactor_run() {
 
 		}
 	}
+}
+
+
+void reactor_destroy() {
+	;
 }
 
 
