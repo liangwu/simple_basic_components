@@ -10,5 +10,6 @@
 
 # Compiled source
 *.exe
+*.out
 *.o
 .vscode
