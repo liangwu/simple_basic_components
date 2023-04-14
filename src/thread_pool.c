@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <queue.h>
 
-#define DEBUG
+#define DEBUG			1
 
 #define PRINT(str)	\
 #if DEBUG			\
