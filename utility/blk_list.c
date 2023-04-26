@@ -69,6 +69,8 @@ static int _block_free_memory(struct _block* blk) {
 	if (!blk->shutdown) { return -1;}
     free(blk->array);
     blk->array = NULL;
+	blk->shutdown = 1;
+
 	return 0;
 }
 
@@ -88,6 +90,9 @@ static int _block_alloc_memory(struct _block *blk, uint16_t item_size) {
 }
 
 
+/*
+*  	@return 数据首地址
+*/
 static void* _block_find(const struct _block* blk, const uint16_t item_size, const uint16_t key) {
 	if (blk == NULL) return NULL;
 	if (!_block_isvalid(blk)) return NULL;
