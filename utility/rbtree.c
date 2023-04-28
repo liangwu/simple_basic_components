@@ -256,7 +256,9 @@ void rbtree_delete(rbtree *T, const KEY_TYPE key) {
 	rbtree_node *node = rbtree_find(T, key);
 	if (node == NULL) return;
 
-again:
+// again:
+	int again = 0;
+do{
 	rbtree_node *child = NULL;
 	rbtree_node *parent = node->parent;
 	// 情形1：node 没有子节点
@@ -285,8 +287,9 @@ again:
 		node->value = successor->value;
 
 		node = successor;
-		goto again;		// 情形3转换为情形1或2，回到上面代码
+		again = 1;		// 情形3转换为情形1或2，回到上面代码
 	}
+} while(again-- > 0);
 
 	free(node); node = NULL;
 
