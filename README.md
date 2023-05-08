@@ -13,10 +13,15 @@
 |rbtree|完成|utility/rbtree.*|
 |btree|未完成|src/btree.*|
 |timer|完成|src/timer.cpp|
-|thread_pool|完成|src/thread_pool.c|
-|thread_pool_cpp|未完成|src/thread_pool.cpp|
 |reactor|未完成|src/reactor.c|
 
+
+### 池式组件
+|组件|状态|文件名|
+|---|---|---|
+|thread_pool|完成|pool/thread_pool.c|
+|thread_pool_cpp|未完成|pool/thread_pool.cpp|
+|mmpool|完成|pool/mmpool.*|
 
 
 
