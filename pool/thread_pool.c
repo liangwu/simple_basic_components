@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <queue.h>
+#include "utility/queue.h"
 
 #define DEBUG			1
 
