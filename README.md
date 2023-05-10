@@ -1,14 +1,13 @@
+<!--
+ * @Author: lixingyu liangwu.lxy@foxmail.com
+ * @Description:
+-->
 # simple_basic_components
 
 ## 介绍
 基于 C/C++ 实现的简单基础组件
 
 ## 组件
-
-|组件|状态|文件名|
-|---|---|---|
-|timer|完成|src/timer.cpp|
-
 
 
 ### 基础工具组件
@@ -30,6 +29,7 @@
 |thread_pool|完成|pool/thread_pool.c|
 |thread_pool_cpp|未完成|pool/thread_pool.cpp|
 |mmpool|完成|pool/mmpool.*|
+|request_pool| 完成 | pool/asyn_dns_client.c |
 
 
 
