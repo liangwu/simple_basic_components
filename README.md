@@ -21,6 +21,7 @@
 |btree|未完成|src/btree.*|
 |timer|完成|src/timer.cpp|
 |reactor|未完成|src/reactor.c|
+|trycatch|完成|src/trycathc.c|
 
 
 ### 池式组件
