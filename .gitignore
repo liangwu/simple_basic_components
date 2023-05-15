@@ -13,3 +13,4 @@
 *.out
 *.o
 .vscode
+test.c
