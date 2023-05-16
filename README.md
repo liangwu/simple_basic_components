@@ -22,6 +22,7 @@
 |timer|完成|src/timer.cpp|
 |reactor|未完成|src/reactor.c|
 |trycatch|完成|src/trycathc.c|
+|timewheel|完成|src/timewheel.*|
 
 
 ### 池式组件
