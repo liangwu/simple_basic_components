@@ -15,6 +15,7 @@
 .vscode
 test.c
 lib/
+build/
 
 # CMake File
 CMakeFiles/
