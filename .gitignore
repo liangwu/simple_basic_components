@@ -14,3 +14,9 @@
 *.o
 .vscode
 test.c
+lib/
+
+# CMake File
+CMakeFiles/
+cmake_install.cmake
+CMakeCache.txt
