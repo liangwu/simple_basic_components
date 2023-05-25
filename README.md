@@ -1,7 +1,8 @@
 <!--
- * @Author: lixingyu liangwu.lxy@foxmail.com
+ * @Author: 凉屋 liangwu.lxy@foxmail.com
  * @Description:
 -->
+
 # simple_basic_components
 
 ## 介绍
@@ -17,6 +18,7 @@
 |timer|完成|src/timer.cpp|
 |reactor|未完成|src/reactor.c|
 |trycatch|完成|src/trycathc.c|
+|基于数组的无锁队列|完成|util/ArrayLockFreeQueue.cpp|
 
 
 ### 容器组件
