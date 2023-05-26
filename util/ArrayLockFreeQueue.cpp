@@ -3,8 +3,7 @@
  * @Description:
  */
 
-
-#include "ArrayLockFreeQueue.hpp"
+#include "ArrayLockFreeQueue.h"
 
 #ifdef __GNUC__
 	#define CAS(ptr, oldval, newval) __sync_bool_compare_and_swap(ptr, oldval, newval)
@@ -59,7 +58,7 @@ bool ArrayLockFreeQueue<T, Q_SIZE>::pop(T &item) {
 		}
 	} while (!CAS(&m_readIndex, curReadIndex, (curReadIndex + 1)));
 
-	item = dataList(calIndex(curReadIndex));
+	item = dataList[calIndex(curReadIndex)];
 	AtomicSub(&m_count, 1);
 
 	return true;
@@ -70,3 +69,51 @@ template<typename T, QUEUE_INT Q_SIZE>
 QUEUE_INT ArrayLockFreeQueue<T, Q_SIZE>::size() const {
 	return m_count;
 }
+
+
+
+#ifdef DEBUG
+
+#include <iostream>
+#include <pthread.h>
+#include <unistd.h>
+
+#define CYCLE_MAX	10000
+
+ArrayLockFreeQueue<int> Queue;
+
+void *thread_routine(void *arg) {
+	int i;
+	for (i = 0; i < CYCLE_MAX; i++) {
+		Queue.push(i);
+		std::cout << "Queue.push(i) :" << i << std::endl;
+	}
+	int result;
+	for (i = 0; i < CYCLE_MAX; i++) {
+		Queue.pop(result);
+		std::cout << "Queue.pop(result) :" << result << std::endl;
+	}
+	std::cout << "thread exit" << pthread_self() << std::endl;
+	return NULL;
+}
+
+#define THREAD_NUM 	5
+
+int main(int argc, char *argv[]) {
+
+	pthread_t tid[THREAD_NUM];
+	for (int i = 0; i < THREAD_NUM; i++) {
+        pthread_create(&tid[i], NULL, thread_routine, NULL);
+	}
+
+	for (int i = 0; i < THREAD_NUM; i++) {
+		pthread_join(tid[i], NULL);
+	}
+	std::cout << "Queue size: " << Queue.size() << std::endl;
+
+	return 0;
+}
+
+
+
+#endif // DEBUG
