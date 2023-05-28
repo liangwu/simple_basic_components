@@ -19,6 +19,7 @@
 |reactor|未完成|src/reactor.c|
 |trycatch|完成|src/trycathc.c|
 |基于数组的无锁队列|完成|util/ArrayLockFreeQueue.cpp|
+|内存泄漏检测|完成|src/memleak.c|
 
 
 ### 容器组件
