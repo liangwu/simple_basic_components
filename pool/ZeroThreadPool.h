@@ -21,6 +21,10 @@
 
 #define NOW		1
 
+using namespace std;
+
+constexpr size_t THREAD_NUM_MIN = 5;
+
 class ZeroThreadPool
 {
 protected:
@@ -33,7 +37,7 @@ protected:
 
 	typedef std::shared_ptr<TaskFunc> TaskFuncPtr;
 	std::queue<TaskFuncPtr> 	_taskQ {};
-	std::vector<std::thread*> 	_threadQ;
+	std::vector<std::thread*> 	_threads;
 	std::mutex					_mutex;
 	std::condition_variable		_condition;
 	size_t 						_threadNum;
@@ -42,24 +46,23 @@ protected:
 public:
 	ZeroThreadPool(size_t num = 5);
 	virtual ~ZeroThreadPool();
-	size_t getThreadNum() const;
-	size_t getTaskNum() const;
+	inline size_t get_thread_num() const;
+	inline size_t get_task_num() const;
 	void stop();
-	bool start();
-	bool waitForAllDone(time_t millsecond = -1);
+	bool wait_for_all_done(int millsecond = -1);
 protected:
 	void thread_routine();
-	bool getTask(TaskFuncPtr& task);
+	bool get_task(TaskFuncPtr& task);
 	bool isTerminate() {return _bTerminate;}
 public:
 	template<class F, class... Args>
-	auto exec(time_t timeout, F&& f, Args&&... args)  -> std::future<decltype(f(args...))>
+	auto exec(time_t timeout, F&& f, Args&& ... args)  -> std::future<decltype(f(args...))>
 	{
 		time_t expire = timeout == 0 ? 0 : NOW + timeout;
 		//定义返回值类型
 		using RetType = decltype(f(args...));	// 推导返回值
 		// 封装任务
-		auto task = std::make_shared<std::packaged_task<RetType()>>(std::bind(std::forward<F>(f), std::forward<Args>(args...)));
+		auto task = std::make_shared<std::packaged_task<RetType()>>(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
 		TaskFuncPtr fPtr = std::make_shared<TaskFunc>(expire);
 		fPtr->_func = [task] { (*task)(); };	// 具体执行的函数
 
@@ -74,7 +77,7 @@ public:
 	template <class F, class... Args>
     auto exec(F&& f, Args&&... args) -> std::future<decltype(f(args...))>
     {
-        return exec(0, std::forward<F>(f), std::forward<Args>(args...));
+        return exec(0, std::forward<F>(f), std::forward<Args>(args)...);
     }
 };
 
