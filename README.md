@@ -30,7 +30,7 @@
 |rbtree|完成|util/rbtree.*|
 |btree|未完成|src/btree.*|
 |timewheel|完成|src/timewheel.*|
-|skiplist|未完成|util/skiplist.*|
+|skiplist|完成|util/skiplist.*|
 
 ### 池式组件
 |组件|状态|文件名|
