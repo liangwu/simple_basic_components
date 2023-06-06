@@ -12,6 +12,7 @@
 *.exe
 *.out
 *.o
+*.gch
 .vscode
 test.c
 lib/

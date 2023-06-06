@@ -48,6 +48,7 @@ public:
 	virtual ~ZeroThreadPool();
 	inline size_t get_thread_num() const;
 	inline size_t get_task_num() const;
+	void start();
 	void stop();
 	bool wait_for_all_done(int millsecond = -1);
 protected:

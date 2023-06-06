@@ -1,8 +1,8 @@
 #include "ZeroThreadPool.h"
 
-#define DEBUG
 
 ZeroThreadPool::ZeroThreadPool(size_t num) {
+	_bTerminate = false;
 	num = num > THREAD_NUM_MIN ? num : THREAD_NUM_MIN;
 	_threads.resize(num);
 	for (int i=0; i < num; i++) {
@@ -20,9 +20,11 @@ void ZeroThreadPool::thread_routine() {
 		TaskFuncPtr task;
 		bool ok = get_task(task);
 		if (ok) {
+			std::cout << "get task finished" << std::endl;
 			_atomic_int++;
 			if (task->_expire != 0 && task->_expire <= NOW) {
 				//超时任务，是否需要处理?
+				std::cout << "超时任务，是否需要处理?" << std::endl;
 			} else {
 				task->_func();
 			}
@@ -42,12 +44,19 @@ bool ZeroThreadPool::get_task(TaskFuncPtr& task) {
 	if (_bTerminate) return false;
 
 	if (!_taskQ.empty()) {
-		task = std::move(_taskQ.front());
+		task = _taskQ.front();
 		_taskQ.pop();
 		return true;
 	}
 
 	return false;
+}
+
+
+void ZeroThreadPool::start() {
+	if (_taskQ.empty()) {
+
+	}
 }
 
 

@@ -37,7 +37,7 @@
 |组件|状态|文件名|
 |---|---|---|
 |thread_pool|完成|pool/thread_pool.c|
-|thread_pool_cpp|未完成|pool/thread_pool.cpp|
+|thread_pool_cpp|完成|pool/ZeroThreadPool.*|
 |mmpool|完成|pool/mmpool.*|
 |request_pool| 完成 | pool/asyn_dns_client.c |
 
